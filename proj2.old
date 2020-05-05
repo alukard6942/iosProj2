@@ -1,0 +1,115 @@
+// proj2.c
+// Milan Koval
+// 23.04.2020
+
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <semaphore.h>
+#include <unistd.h>
+
+void *soudce (void *ptr);
+void *imigrt (void *ptr);
+
+
+// generator imigrant
+void *imigrtGen (void *ptr);
+
+// generator soudce
+void *soudceGen (void *ptr);
+
+// semafors
+sem_t linePrint; // we wouldnt want to be printing two line at the same time would we now
+sem_t enter;
+sem_t soudceIn;
+sem_t check;
+
+// globalni promene vsech procesu mozna bychom mohli zabalit do strucktu
+int PI;
+
+int line = 0;
+int I_proc = 0;
+int NE = 0;
+int NC = 0;
+int NB = 0;
+
+
+int main (int argc, char * argv[]){
+
+	// spravny pocet argumentu
+	if ( argc < 2) return 1;
+																			fprintf(stderr,"GDBUG1 %i %i\n",__LINE__, argc );
+
+	// get number of mexican
+	PI = atoi(argv[1]);
+																			fprintf(stderr,"GDBUG1 %i %i\n",__LINE__, PI );
+	sem_init(&enter, 0, 1);	
+	sem_init(&soudceIn, 0, 1);	
+	sem_init(&check, 0, 1);																		
+	sem_init(&linePrint, 0, 1);																		
+
+	pthread_t imigrtGenThread;
+	pthread_t soudceGenThread;
+																			fprintf(stderr,"GDBUG1 %i \n",__LINE__);
+
+	pthread_create(&imigrtGenThread, NULL, &imigrtGen, NULL);
+	pthread_create(&soudceGenThread, NULL, 	 &soudce, NULL);
+
+
+
+	pthread_join(imigrtGenThread, NULL);
+																			fprintf(stderr,"GDBUG1 %i imigrtGenThread JOINED\n",__LINE__);
+	return 1;
+}
+
+void *imigrt (void *ptr){
+	int Id = ++I_proc;
+																			fprintf(stderr,"GDBUG1 %i img begin %i\n",__LINE__,Id);		
+	sem_wait(&enter);
+	sem_wait(&soudceIn); // cekej pokud je soudce uvnitr
+	sem_wait(&linePrint);
+	printf("%i:\t IMG %i: enters:\t%i:\t%i\t%i \n", ++line, Id, ++NE, NC, ++NB );
+	sem_post(&linePrint);
+	sem_post(&enter);
+	sem_post(&soudceIn); // ensures only one pe
+
+	sem_wait(&check);
+	sem_wait(&linePrint);
+	printf("%i:\t IMG %i: checks:\t%i:\t%i\t%i \n", ++line, Id, NE, ++NC, NB );
+	sem_post(&linePrint);
+	sem_post(&check);
+
+																			fprintf(stderr,"GDBUG1 %i img end %i\n",__LINE__,  Id);		
+	return ptr;
+}
+
+void *soudce (void *ptr){
+
+	return ptr;
+}
+
+void *imigrtGen(void *ptr){
+
+	pthread_t imigrtArr [PI];
+
+	for(int i = 0; i < PI; i++ ){
+		pthread_create(&imigrtArr[i], NULL, &imigrt, NULL);
+																			fprintf(stderr,"GDBUG1 %i bithing %i\n",__LINE__, i );		
+		//sleep(rand()%5); // todo ms, based on input																			
+ 	}
+	for(int i = 0; i < PI; i++ ){
+		pthread_join(imigrtArr[i], NULL);
+																			fprintf(stderr,"GDBUG1 %i kiling %i\n",__LINE__, i );		
+
+	}
+	return ptr;
+
+}
+
+void * soudceGen( void *ptr){
+
+
+	return ptr;
+}
+
+
