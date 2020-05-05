@@ -1,6 +1,7 @@
 // proj2.c
-// Milan Koval
-// 23.04.2020
+// Řešení IOS, 23.04.2020
+// Autor: Milan Koval, FIT
+// Přeloženo: gcc 7.5.0
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,20 +15,21 @@
 
 
 #ifdef DEBUG
-	#define DEBUGMSG(val, i) fprintf(stderr, "============%i: %s: %i\n",__LINE__, val,i)
+	#define DEBUGMSG(val, i) fprintf(stderr, "============%i: %s: %i\n",__LINE__, val,i);
 	int value; 
 	#define DEBUGSEM(sem) sem_getvalue(sem, &value);  DEBUGMSG(#sem, value)
 #else
-	#define DEBUGSEM(sem) 
-	#define DEBUGMSG(val, i) 
+	#define DEBUGSEM(sem)
+	#define DEBUGMSG(val, i)
 #endif
 
 // globalni promene vsech procesu mozna bychom mohli zabalit do strucktu
 
+FILE *fileOut;
 
 typedef struct{
 
-	FILE *fileOut;
+	
 
 	int PI;
 	int IG;
@@ -49,12 +51,13 @@ typedef struct{
 	sem_t leave;
 
 	int soudceFlag;
+	int immLeft;
 	
 } shared_variables;
 
 
 void *imigrant( void *ptr,int ID);
-void *soudce (void *ptr);
+int soudce (void *ptr);
 
 
 
@@ -77,7 +80,8 @@ int main (int argc, char * argv[]){
 	data->IT = atoi(argv[4]);
 	data->JT = atoi(argv[5]);
 
-	data->fileOut = fopen("proj2.out", "w");
+	fileOut = fopen("proj2.out", "w");
+	setbuf(fileOut, NULL);
 
 	data->line = 0;
 	data->NE = 0;
@@ -89,11 +93,12 @@ int main (int argc, char * argv[]){
 	sem_init(&data->door, 		1, 1);
 	sem_init(&data->confirmation,1,0); // starts on red light
 	sem_init(&data->check, 		1, 1);
-	sem_init(&data->checkedin,	1, 1);
+	sem_init(&data->checkedin,	1, 0);
 	sem_init(&data->certificate,1, 1);
-	sem_init(&data->leave,		1, 1);
+	sem_init(&data->leave,		1, 0);
 
 	data->soudceFlag = 1;
+	data->immLeft = atoi(argv[1]);
 
 
 	int p = fork();
@@ -128,34 +133,30 @@ int main (int argc, char * argv[]){
 
 				// child proces
 				if ( p == 0){
-	 				DEBUGMSG("proces",i);
+	 				DEBUGMSG("proces",i)
 
 	 				imigrant(data, i);
 
-	 				DEBUGSEM(&data->leave);
-	 				sem_post(&data->leave);
-	 				DEBUGSEM(&data->leave);
-	 				DEBUGMSG("proces leaves",i);
+	 				DEBUGMSG("proces leaves",i)
 	 				break;
 				} 
 			}
 		}
 		else {
 			// generate soudce
-			DEBUGMSG("soudce",0);
-			 while (data->soudceFlag){
+			DEBUGMSG("soudce",0)
+			do { 
 				if(data->JG) usleep(rand()%data->JG);
-				soudce(data);
-			}
+			} while (soudce(data));
 		}
 	}
 	else{
 
 		for (int i = 1; i <= data->PI; i++){ 
 			sem_wait(&data->leave);
-			DEBUGSEM(&data->leave);
+			DEBUGSEM(&data->leave)
 		}
-		DEBUGMSG("after leave sem",0);
+		DEBUGMSG("after leave sem",0)
 
 		data->soudceFlag = 0;
 
@@ -176,123 +177,131 @@ int main (int argc, char * argv[]){
 void *imigrant( void *ptr, int ID){
 	shared_variables *data = (shared_variables *) ptr;
 
-	//sem_wait(&data->linePrint);
-	fprintf(data->fileOut,"%i\t: IMG %i \t: starts: \n", ++data->line, ID);
-	//sem_post(&data->linePrint);
+	sem_wait(&data->linePrint);
+	fprintf(fileOut,"%i\t: IMM %i \t: starts  \n", ++data->line, ID);
+	sem_post(&data->linePrint);
 	
 	// vejdi do budovi
 	sem_wait(&data->door);
-	//sem_wait(&data->linePrint);
-	fprintf(data->fileOut,"%i\t: IMG %i \t: enters:             \t: %i\t: %i\t: %i\n", ++data->line, ID, ++data->NE, data->NC, ++data->NB );
-	//sem_post(&data->linePrint);
+	DEBUGMSG("immLeft", data->immLeft)
+	data->immLeft -= 1;
+	DEBUGMSG("immLeft", data->immLeft)
+	sem_wait(&data->linePrint);
+	fprintf(fileOut,"%i\t: IMM %i \t: enters             \t: %i\t: %i\t: %i\n", ++data->line, ID, ++data->NE, data->NC, ++data->NB );
+	sem_post(&data->linePrint);
 	sem_post(&data->door);
 	
 
 	// check in
 	sem_wait(&data->check);
-	//sem_wait(&data->linePrint);
-	fprintf(data->fileOut,"%i\t: IMG %i \t: checks:             \t: %i\t: %i\t: %i\n", ++data->line, ID, data->NE, ++data->NC, data->NB );
-	//sem_post(&data->linePrint);
+	sem_wait(&data->linePrint);
+	fprintf(fileOut,"%i\t: IMM %i \t: checks             \t: %i\t: %i\t: %i\n", ++data->line, ID, data->NE, ++data->NC, data->NB );
+	sem_post(&data->linePrint);
 	sem_post(&data->check);
 
 	// imigrnat je dovolen vzit si certificate pouze kdyz to soudce dovali
 	sem_post(&data->checkedin);
 	sem_wait(&data->confirmation);
 
-	// get to get certificate
+	// go to get certificate
 	sem_wait(&data->certificate);
-	//sem_wait(&data->linePrint);
-	fprintf(data->fileOut,"%i\t: IMG %i \t: wants certificate:  \t: %i\t: %i\t: %i\n", ++data->line, ID, data->NE, data->NC, data->NB );
-	//sem_post(&data->linePrint);
+	sem_wait(&data->linePrint);
+	fprintf(fileOut,"%i\t: IMM %i \t: wants certificate   \t: %i\t: %i\t: %i\n", ++data->line, ID, data->NE, data->NC, data->NB );
+	sem_post(&data->linePrint);
 
 	// get certificate
 	if(data->IT) usleep(rand()% data->IT);
 
-	//sem_wait(&data->linePrint);
-	fprintf(data->fileOut,"%i\t: IMG %i \t: got certificate:    \t: %i\t: %i\t: %i\n", ++data->line, ID, data->NE, data->NC, data->NB );
-	//sem_post(&data->linePrint);
+	sem_wait(&data->linePrint);
+	fprintf(fileOut,"%i\t: IMM %i \t: got certificate     \t: %i\t: %i\t: %i\n", ++data->line, ID, data->NE, data->NC, data->NB );
+	sem_post(&data->linePrint);
 	sem_post(&data->certificate); 
 
 	// leave
-	//if(()%40) usleep(rand()%40);
 	sem_wait(&data->door);
-	//sem_wait(&data->linePrint);
-	fprintf(data->fileOut,"%i\t: IMG %i \t: leaves:              \t: %i\t: %i\t: %i\n", ++data->line, ID, data->NE, data->NC, --data->NB );
-	//sem_post(&data->linePrint);
+	sem_wait(&data->linePrint);
+	fprintf(fileOut,"%i\t: IMM %i \t: leaves              \t: %i\t: %i\t: %i\n", ++data->line, ID, data->NE, data->NC, --data->NB );
+	sem_post(&data->linePrint);
 	sem_post(&data->door);
 
 
-	//sem_post(&data->leave);
+	sem_post(&data->leave);
 	return ptr;
 }
 
-void *soudce (void *ptr){
+int soudce (void *ptr){
 shared_variables *data = (shared_variables *) ptr;
 	//////////////////////
 	//	soudce 			//
 	//////////////////////
 
-	//if(()%40) usleep(rand()%40);
-
-	
-	//sem_wait(&data->linePrint);
-		fprintf(data->fileOut,"%i\t: JUDGE \t: wats to enter:\n", ++data->line);
-	//sem_post(&data->linePrint);
+	sem_wait(&data->linePrint);
+	fprintf(fileOut,"%i\t: JUDGE \t: wants to enter \n", ++data->line);
+	sem_post(&data->linePrint);
 	
 	sem_wait(&data->door); // soudce vchazi do budovy
-		//sem_wait(&data->linePrint);
-		fprintf(data->fileOut,"%i\t: JUDGE \t: enters:              \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
-		//sem_post(&data->linePrint);
-		//if(()%40) usleep(rand()%40);
+	sem_wait(&data->linePrint);
+	fprintf(fileOut,"%i\t: JUDGE \t: enters              \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
+	sem_post(&data->linePrint);
 
 
-		// wait for all inigransts
-		if( data->NE != data->NC )
-			fprintf(data->fileOut,"%i\t: JUDGE \t: waits for imm        \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
+	// wait for all inigransts
+	sem_wait(&data->linePrint);
+	if( data->NE != data->NC )		
+		fprintf(fileOut,"%i\t: JUDGE \t: waits for imm        \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
+	sem_post(&data->linePrint);
 
-		for(int i = 0; i < data->NE; i++){
-			DEBUGMSG("NE", data->NE);
-			DEBUGMSG("NC", data->NC);
-			DEBUGSEM(&data->checkedin);
-			sem_wait(&data->checkedin);
-		}
-
-
-
-		//sem_wait(&data->linePrint);
-		fprintf(data->fileOut,"%i\t: JUDGE \t: starts confirmation  \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
-		//sem_post(&data->linePrint);
-		
-		if(data->JT ) usleep(rand()% data->JT );
-
-		// confoirm NC imigrants
-		while(data->NC > 0){ // for(int i = 0; i < data->NC; i++) nc chenges
-			sem_post(&data->confirmation);
-			DEBUGSEM(&data->confirmation);
-			data->NE--;
-			data->NC--;
-		}
-
-		fprintf(data->fileOut,"%i\t: JUDGE \t: ends confirmation   \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
-		
-		
+	for(int i = 0; i < data->NE; i++){
+		DEBUGMSG("NE", data->NE)
+		DEBUGMSG("NC", data->NC)
+		DEBUGSEM(&data->checkedin)
+		sem_wait(&data->checkedin);
+	}
 
 
-		//sem_wait(&data->linePrint);
-		//fprintf(data->fileOut,"%i\t: JUDGE \t: jaf;lk:              \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
-		//sem_post(&data->linePrint);
 
-		//sem_wait(&data->linePrint);
-		//fprintf(data->fileOut,"%i\t: JUDGE \t: lefajdkl:              \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
-		//sem_post(&data->linePrint);
+	sem_wait(&data->linePrint);
+	fprintf(fileOut,"%i\t: JUDGE \t: starts confirmation  \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
+	sem_post(&data->linePrint);
 	
+	if(data->JT ) usleep(rand()% data->JT );
+
+	sem_wait(&data->linePrint);
+	fprintf(fileOut,"%i\t: JUDGE \t: ends confirmation   \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
+	sem_post(&data->linePrint);
+
+	// confoirm NC imigrants
+	while(data->NC > 0){ // for(int i = 0; i < data->NC; i++) nc chenges
+		sem_post(&data->confirmation);
+		DEBUGSEM(&data->confirmation)
+		data->NE--;
+		data->NC--;
+	}
+
+	sem_wait(&data->linePrint);
+	//fprintf(fileOut,"%i\t: JUDGE \t: jaf;lk              \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
+	sem_post(&data->linePrint);
+
+	sem_wait(&data->linePrint);
+	//fprintf(fileOut,"%i\t: JUDGE \t: lefajdkl              \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
+	sem_post(&data->linePrint);
 
 
-		//sem_wait(&data->linePrint);
-		fprintf(data->fileOut,"%i\t: JUDGE \t: leaves:              \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
-		//sem_post(&data->linePrint);
+
+	sem_wait(&data->linePrint);
+	fprintf(fileOut,"%i\t: JUDGE \t: leaves              \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
+	sem_post(&data->linePrint);
+	int left = data->immLeft;
 	sem_post(&data->door);
 
 
-	return ptr;
+	DEBUGMSG("immLeft", left)
+	if (left) 
+		return 1;
+	else{
+		sem_wait(&data->linePrint);
+		fprintf(fileOut,"%i\t: JUDGE \t: finishes \n", ++data->line );
+		sem_post(&data->linePrint);
+		return 0;
+	} 
 }
