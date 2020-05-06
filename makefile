@@ -23,8 +23,8 @@ test: run scriptos
 
 
 run: proj2
-	./proj2 1000 0 0 0 0 0
-
+	./proj2 10000 0 0 0 0
+	
 proj2: proj2.c
 	$(CC) $(CFLAGS) -pthread  proj2.c -o proj2 -lrt
 

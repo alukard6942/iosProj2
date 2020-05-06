@@ -10,8 +10,8 @@
 #include <sys/types.h> 
 #include <sys/mman.h>
 #include <sys/stat.h>        /* For mode constants */
-#include <fcntl.h>           /* For O_* constants */
 #include <time.h>
+#include <string.h>
 
 
 #ifdef DEBUG
@@ -64,7 +64,11 @@ int soudce (void *ptr);
 int main (int argc, char * argv[]){
 
 	// spravny pocet argumentu
-	if ( argc < 2) return 1;
+	if ( argc  != 6){
+		fprintf(stderr,"USAGE: %s PI IG JG IT JT\n", argv[0]);
+		return 1;
+	} 
+		
 
 	// shared memmory hopfully
 	shared_variables *data;		
@@ -75,10 +79,30 @@ int main (int argc, char * argv[]){
 
 	// get number of mexican
 	data->PI = atoi(argv[1]);
+	if ( data->PI < 1 ){
+		fprintf(stderr, "%s: is not a valid number\n", argv[1] );
+		return 3;
+	}
 	data->IG = atoi(argv[2]);
+	if ( data->IG <0 || data->IG > 2000 || (!data->IG && strcmp(argv[2],"0"))){
+		fprintf(stderr, "%s: is not a valid number\n", argv[2] );
+		return 3;
+	}
 	data->JG = atoi(argv[3]);
+	if ( data->JG <0 || data->IG > 2000 || (!data->JG && strcmp(argv[3],"0"))){
+		fprintf(stderr, "%s: is not a valid number\n", argv[3] );
+		return 3;
+	}
 	data->IT = atoi(argv[4]);
+	if ( data->IT <0 || data->IG > 2000 || (!data->IT && strcmp(argv[4],"0"))){
+		fprintf(stderr, "%s: is not a valid number\n", argv[4] );
+		return 3;
+	}
 	data->JT = atoi(argv[5]);
+	if ( data->JT <0 || data->IG > 2000 || (!data->JT && strcmp(argv[5],"0"))){
+		fprintf(stderr, "%s: is not a valid number\n", argv[5] );
+		return 3;
+	}
 
 	fileOut = fopen("proj2.out", "w");
 	setbuf(fileOut, NULL);
@@ -127,7 +151,7 @@ int main (int argc, char * argv[]){
 
 				// parent proces
 				if( p > 0){ 
-					if(data->IG ) usleep(rand() % data->IG );
+					if(data->IG ) usleep(rand() % data->IG +1);
 					continue;
 				}
 
@@ -146,7 +170,7 @@ int main (int argc, char * argv[]){
 			// generate soudce
 			DEBUGMSG("soudce",0)
 			do { 
-				if(data->JG) usleep(rand()%data->JG);
+				if(data->JG) usleep(rand()%data->JG +1);
 			} while (soudce(data));
 		}
 	}
@@ -167,6 +191,7 @@ int main (int argc, char * argv[]){
 		sem_destroy(&data->checkedin);
 		sem_destroy(&data->certificate);
 		sem_destroy(&data->leave);
+		fclose(fileOut);
 
 	}
 
@@ -210,7 +235,7 @@ void *imigrant( void *ptr, int ID){
 	sem_post(&data->linePrint);
 
 	// get certificate
-	if(data->IT) usleep(rand()% data->IT);
+	if(data->IT) usleep(rand()% data->IT +1);
 
 	sem_wait(&data->linePrint);
 	fprintf(fileOut,"%i\t: IMM %i \t: got certificate     \t: %i\t: %i\t: %i\n", ++data->line, ID, data->NE, data->NC, data->NB );
@@ -261,10 +286,10 @@ shared_variables *data = (shared_variables *) ptr;
 
 
 	sem_wait(&data->linePrint);
-	fprintf(fileOut,"%i\t: JUDGE \t: starts confirmation  \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
+	fprintf(fileOut,"%i\t: JUDGE \t: starts confirmation \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
 	sem_post(&data->linePrint);
 	
-	if(data->JT ) usleep(rand()% data->JT );
+	if(data->JT ) usleep(rand()% data->JT +1);
 
 	sem_wait(&data->linePrint);
 	fprintf(fileOut,"%i\t: JUDGE \t: ends confirmation   \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
@@ -277,16 +302,6 @@ shared_variables *data = (shared_variables *) ptr;
 		data->NE--;
 		data->NC--;
 	}
-
-	sem_wait(&data->linePrint);
-	//fprintf(fileOut,"%i\t: JUDGE \t: jaf;lk              \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
-	sem_post(&data->linePrint);
-
-	sem_wait(&data->linePrint);
-	//fprintf(fileOut,"%i\t: JUDGE \t: lefajdkl              \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
-	sem_post(&data->linePrint);
-
-
 
 	sem_wait(&data->linePrint);
 	fprintf(fileOut,"%i\t: JUDGE \t: leaves              \t: %i\t: %i\t: %i\n", ++data->line, data->NE, data->NC, data->NB );
